@@ -1,0 +1,172 @@
+﻿@{
+    ViewData["Title"] = "Home Page";
+}
+
+<br />
+<img src="~/images/vssummit.png" />
+
+<h2>Análise de Emoções</h2>
+
+<div class="row">
+    <form class="form-horizontal" method="post" asp-action="Upload" asp-controller="Upload" enctype="multipart/form-data">
+
+        <div class="form-group webcam">
+            <video id="videoUser" autoplay></video>
+        </div>
+
+        <div class="form-group">
+            <label class="col-md-6 control-label" for="arquivo">Você também pode escolher a imagem, se preferir</label>
+            <div class="col-md-4">
+                <input type="file" accept=".jpg, .jpeg, .png" id="file">
+            </div>
+        </div>
+
+        <div class="form-group" style="display:none">
+            <img id="imagem" width="500" height="500" />
+        </div>
+
+        <div class="form-group">
+            <div class="col-md-6">
+                <canvas id='canvas' width='500' height='500'>
+                    Seu navegador não suporta Canvas :(
+                </canvas>
+            </div>
+            <div class="col-md-6">
+                <canvas id='canvasDepoisAnalise' width='500' height='500'>
+                    Seu navegador não suporta Canvas :(
+                </canvas>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <div class="col-md-12">
+                <button class="btn btn-primary pull-right" type="button" onclick="analisarSentimentos()">
+                    Analisar!
+                </button>
+            </div>
+        </div>
+
+        <input type="hidden" name="arquivo" id="arquivo" />
+
+    </form>
+</div>
+
+
+<script>
+    var urlAnalise = '@Url.Action("AnalisarSentimentos")'
+    var localStream;
+
+    if (navigator.webkitGetUserMedia != null) {
+        var options = {
+            video: true,
+            audio: false
+        };
+
+        navigator.webkitGetUserMedia(options,
+            function (stream) {
+                var video = document.querySelector('#videoUser');
+                video.src = window.webkitURL.createObjectURL(stream);
+                localStream = stream;
+            },
+            function (e) {
+                $(".webcam").hide();
+            }
+        );
+    }
+
+    $("#btnCapturar").click(function () {
+        var video = document.querySelector('#videoUser');
+        var canvas = document.getElementById('canvas');
+        var ctx = canvas.getContext('2d');
+        ctx.drawImage(video, 0, 0, 500, 500);
+    });
+
+    $(document).on('change', "#file", function () {
+        var file = this;
+
+        if (file.files && file.files[0]) {
+            file.files[0];
+            var reader = new FileReader();
+
+            reader.readAsDataURL(file.files[0], 'UTF-8');
+
+            reader.onload = function (e) {
+                var canvas = document.getElementById("canvas");
+                var ctx = canvas.getContext("2d");
+                var img = document.querySelector('#imagem');
+                img.src = e.target.result;
+                ctx.drawImage(img, 0, 0, 500, 500);
+            };
+        }
+    });
+
+    function analisarSentimentos() {
+        //localStream.getVideoTracks()[0].stop();
+
+        var canvas = document.getElementById('canvas');
+        $("#arquivo").val(canvas.toDataURL("image/jpeg"));
+
+        $.post(urlAnalise, {
+            arquivo: $("#arquivo").val()
+        }).done(function (data) {
+            desenharNaFoto(data);
+        }).fail(function () {
+            alert('Deu meleca...');
+        });
+    }
+
+    function desenharNaFoto(data) {
+        var canvas = document.getElementById("canvasDepoisAnalise");
+        var ctx = canvas.getContext("2d");
+        var img = document.querySelector('#imagem');
+        ctx.drawImage(img, 0, 0, 500, 500);
+
+        data.forEach(function (item) {
+            var faceRectangle = item.faceRectangle;
+
+            ctx.lineWidth = "4";
+            ctx.strokeStyle = "red";
+            ctx.rect(faceRectangle.left, faceRectangle.top, faceRectangle.width, faceRectangle.height);
+
+            ctx.stroke();
+
+            ctx.fillStyle = "#abc";
+            ctx.font = "20px Georgia";
+            ctx.fillStyle = "red";
+            ctx.fillText(nomeDoSentimento(item.scores), +faceRectangle.left + 5, +faceRectangle.top + 20);
+        });
+    }
+
+    function nomeDoSentimento(scores) {
+
+        var sentimentos = {
+            anger: 'com raiva',
+            contempt: 'com desprezo',
+            disgust: 'com nojo',
+            fear: 'com medo',
+            happiness: 'feliz! :D',
+            neutral: 'normal...',
+            sadness: 'triste',
+            surprise: 'surpresa'
+        };
+
+        var maiorScore = 0, key;
+
+        var dadosObjeto = Object.keys(scores);
+
+        dadosObjeto.forEach(function (item) {
+            if (scores[item] > maiorScore) {
+                maiorScore = scores[item];
+                key = item;
+            }
+        })
+
+        return "A pessoa está: " + sentimentos[key];
+
+    }
+
+
+
+
+</script>
+
